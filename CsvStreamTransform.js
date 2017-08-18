@@ -1,6 +1,7 @@
 'use strict';
 
 const stream = require('stream');
+const services = require('./services');
 
 let boundary_ = '';
 
@@ -13,15 +14,13 @@ class CsvStreamTransform extends stream.Transform {
         super(options);
     }
 
-    _transform(chunk, encoding, callback) {
+    _transform(chunkStr, encoding, callback) {
         if ('utf8' !== encoding) {
             this.emit('error', new Error('only utf-8 supported!'));
             return callback();
         }
-        if (
-            !~chunk.indexOf(boundary_) && !~chunk.indexOf('Content-Disposition:') && !~chunk.indexOf('Content-Type:') && '' !== chunk.trim()
-        ) {
-            this.push(chunk + "\r\n");
+        if (services.isThisDataStrChunk(boundary_, chunkStr)) {
+            this.push(chunkStr + "\r\n");
         }
         callback();
     }
