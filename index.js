@@ -3,7 +3,7 @@
 const http = require('http');
 const fs = require('fs');
 const split = require('split');
-
+const CsvStreamTransform = require('./CsvStreamTransform');
 
 const server = http.createServer();
 const CSV_URL = '/csv';
@@ -26,14 +26,13 @@ const MAX_CSV_DATA = 1024 * 1024 * 100;
 
 
 var mysql      = require('mysql');
-var connection = mysql.createConnection({
-    host     : 'localhost',
-    user     : 'gaa',
-    password : '123',
-    database : 'test'
+var mysqlPool  = mysql.createPool({
+    connectionLimit : 10,
+    host            : 'localhost',
+    user            : 'gaa',
+    password        : '123',
+    database        : 'test'
 });
-
-connection.connect();
 
 
 const csvReader = (max_csv_data) => {
@@ -44,38 +43,39 @@ const csvReader = (max_csv_data) => {
         ;
 
 
+    res.setHeader('Connection', 'Transfer-Encoding');
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.setHeader('Transfer-Encoding', 'chunked');
 
-    // res.setHeader('Connection', 'Transfer-Encoding');
-    // res.setHeader('Content-Type', 'text/txt; charset=utf-8');
-    // res.setHeader('Transfer-Encoding', 'chunked');
-    // req.setTimeout(2000, () => {
-    //     console.log('terminated!');
-    // });
     req
     .pipe(split())
     .on('data', chunk => {
-        size += chunk.length;
-        if (size > max_csv_data) {
-            res.statusCode = 413;
-            // TODO WHY this shit does not work with .pipe(split()) ???
-            // res.setHeader('Connection', 'close');
-            res.end('File is too big!');
-        }
+        // size += chunk.length;
+        // if (size > max_csv_data) {
+        //     res.statusCode = 413;
+        //     // TODO WHY this shit does not work with .pipe(split()) ???
+        //     // res.setHeader('Connection', 'close');
+        //     res.end('File is too big!');
+        // }
         req.pause();
         lineDate = [];
         lineDate = chunk.split(',');
+
         // TODO How cut HEADERS FROM body data???
         if (lineDate.length === 3) {
             var post  = {fname: lineDate[0], sname: lineDate[1], email: lineDate[2]};
-            var query = connection.query('INSERT INTO `csv` SET ?', post, function (error, results, fields) {
-                if (error) {
-                    console.log(error);
+            mysqlPool.getConnection(function(err, connection) {
+                var query = connection.query('INSERT INTO `csv` SET ?', post, function(error, results, fields) {
+                    if (error) {
+                        console.log(error);
+                    } else {
+                        // res.write(lineDate.join(",") + "\r\n");
+                    }
                     req.resume();
-                } else {
-                    req.resume();
-                    // res.write(lineDate.join(",") + "\r\n");
-                }
+                    connection.release();
+                });
             });
+            // sqlite
             // db.run('INSERT INTO csv  VALUES(NULL, ?, ?, ?)', [lineDate[0], lineDate[1], lineDate[2]], function(err) {
             //     if (err) {
             //         console.error(err);
@@ -88,10 +88,10 @@ const csvReader = (max_csv_data) => {
     })
     .on('end', () => {
         console.log('uploading finished!');
-        res.end('OK');
-        // connection.end();
-        // db.close();
-    });
+        res.end();
+    })
+    .pipe(new CsvStreamTransform(req.headers['content-type'].split(';')[1].trim().split('=')[1]))
+    .pipe(res);
 };
 
 const redirectToHome = () => {
