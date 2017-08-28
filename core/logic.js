@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const split = require('split');
-const dbPool = require('./db');
+const db = require('./db');
 const config = require('./config');
 const services = require('./../services/services');
 const limitStream = require('size-limit-stream');
@@ -45,14 +45,14 @@ const readCSV = function(max_csv_data) {
                     sname: lineData[1],
                     email: lineData[2]
                 };
-                dbPool.getConnection().then(connection => {
-                    dbPool.query(
+                db.getConnection().then(connection => {
+                    db.query(
                         connection
                         ,'INSERT INTO `csv` SET ?'
                         ,post
                     ).then(res => {
                         req.resume();
-                        dbPool.releaseConnection(connection);
+                        db.releaseConnection(connection);
                     });
                 });
             }
