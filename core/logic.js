@@ -2,7 +2,7 @@
 
 const fs = require('fs');
 const split = require('split');
-const mysqlPool = require('./db');
+const dbPool = require('./db');
 const config = require('./config');
 const services = require('./../services/services');
 const limitStream = require('size-limit-stream');
@@ -40,35 +40,21 @@ const readCSV = function(max_csv_data) {
             lineData = chunkStr.split(',');
 
             if (services.isThisDataStrChunk(boundary, chunkStr) && lineData.length === 3) {
-                // mysql
                 let post = {
                     fname: lineData[0],
                     sname: lineData[1],
                     email: lineData[2]
                 };
-                mysqlPool.getConnection(function(err, connection) {
-                    var query = connection.query(
-                        'INSERT INTO `csv` SET ?',
-                        post,
-                        (error, results, fields) => {
-                            if (error) {
-                                console.log(error);
-                            } else {
-                                req.resume();
-                            }
-                            connection.release();
-                        }
-                    );
+                dbPool.getConnection().then(connection => {
+                    dbPool.query(
+                        connection
+                        ,'INSERT INTO `csv` SET ?'
+                        ,post
+                    ).then(res => {
+                        req.resume();
+                        dbPool.releaseConnection(connection);
+                    });
                 });
-                // sqlite
-                // db.run('INSERT INTO csv  VALUES(NULL, ?, ?, ?)', [lineData[0], lineData[1], lineData[2]], function(err) {
-                //     if (err) {
-                //         console.error(err);
-                //     } else {
-                //         res.write(lineData.join(",") + "\r\n");
-                //         req.resume();
-                //     }
-                // });
             }
         })
         .pipe(new CsvStreamTransform(boundary))

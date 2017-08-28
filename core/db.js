@@ -22,4 +22,44 @@ const mysqlPool  = require('mysql').createPool({
 // 	email VARCHAR(255) NOT NULL DEFAULT ''
 // );`);
 
-module.exports = mysqlPool;
+module.exports = {
+    getConnection: () => {
+        return new Promise((resolve, reject) => {
+            mysqlPool.getConnection((err, connection) => {
+                err && reject(err);
+                resolve(connection);
+            });
+        }).catch(err => {
+            console.error(err);
+        });
+    },
+    releaseConnection: (connection) => {
+        connection.release();
+    },
+    // sqlite
+    // db.run('INSERT INTO csv  VALUES(NULL, ?, ?, ?)', [lineData[0], lineData[1], lineData[2]], function(err) {
+    //     if (err) {
+    //         console.error(err);
+    //     } else {
+    //         res.write(lineData.join(",") + "\r\n");
+    //         req.resume();
+    //     }
+    // });
+    query: (connection, sql, data = {}) => {
+        return new Promise((resolve, reject) => {
+            if (data) {
+                connection.query(sql, data, (err, results, fields) => {
+                    err && reject(err);
+                    resolve({
+                        results
+                        ,fields
+                    });
+                });
+            } else {
+
+            }
+        }).catch(err => {
+            console.error(err);
+        });
+    }
+};
